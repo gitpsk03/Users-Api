@@ -29,51 +29,55 @@ initializeDBAndServer()
 
 // Register API
 app.post('/user/', async (request, response) => {
-  const {username, name, password, email} = request.body
-  const hashedPassword = await bcrypt.hash(password, 10)
-  const selectUserQuery = `
-    SELECT * FROM user WHERE username = '${username}'
-  `
-  const dbUser = await db.get(selectUserQuery)
+  const { username, name, password, email } = request.body;
+  if (!password) {
+    response.status(400);
+    response.send("Password is required");
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const selectUserQuery = `SELECT * FROM user WHERE username = ?;`;
+  const dbUser = await db.get(selectUserQuery, [username]);
 
   if (dbUser === undefined) {
     const createUserQuery = `
-  INSERT INTO
-    user (username, name, password, email)
-  VALUES
-    (
-      '${username}',
-      '${name}',
-      '${hashedPassword}',
-      '${email}'
-    );`
-    await db.run(createUserQuery)
-    response.send('User Created Successfully')
+      INSERT INTO user (username, name, password, email)
+      VALUES (?, ?, ?, ?);
+    `;
+    await db.run(createUserQuery, [username, name, hashedPassword, email]);
+    response.send("User Created Successfully");
   } else {
-    response.status(400)
-    response.send('User Already Exists')
+    response.status(400);
+    response.send("User Already Exists");
   }
-})
+});
 
-// login API
 app.post('/login/', async (request, response) => {
-  const {username, password} = request.body
-  const selectUserQuery = `
-  SELECT * FROM user WHERE username = '${username}'
-  `
-  const dbUser = await db.get(selectUserQuery)
+  const { username, password } = request.body;
+  const selectUserQuery = `SELECT * FROM user WHERE username = ?;`;
+  const dbUser = await db.get(selectUserQuery, [username]);
+
   if (dbUser === undefined) {
-    response.status(400)
-    response.send('Invalid User')
+    response.status(400);
+    response.send("Invalid User");
   } else {
-    const isPasswordMatched = await bcrypt.compare(password, dbUser.password)
-    if (isPasswordMatched === true) {
-      const payload = {username}
-      const jwtToken = jwt.sign(payload, 'newstring')
-      response.send(jwtToken)
+    if (!password || !dbUser.password) {
+      response.status(400);
+      response.send("Password is missing or invalid");
+      return;
+    }
+
+    const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
+    if (isPasswordMatched) {
+      const payload = { username };
+      const jwtToken = jwt.sign(payload, "newstring");
+      response.send({ jwtToken });
     } else {
-      response.status(400)
-      response.send('Invalid Password')
+      response.status(400);
+      response.send("Invalid Password");
     }
   }
-})
+});
+
