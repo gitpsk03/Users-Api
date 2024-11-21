@@ -1,0 +1,24 @@
+
+###
+
+POST http://localhost:3000/user/
+Content-Type: application/json
+
+{   
+    "name":"kalyani",
+    "username":"kalyani03",
+    "password": "kalyan@03i",
+    "email":"kalyani@gmail.com"
+}
+
+
+###
+
+POST http://localhost:3000/login/
+Content-Type: application/json
+
+{
+    "username":"kalyan03",
+    "password": "kalyan@03"
+}
+

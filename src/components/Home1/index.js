@@ -50,7 +50,7 @@ const tagsList = [
   },
 ]
 
-class Home extends Component {
+class Home1 extends Component {
   state = {
     inputText: '',
     inputTag: tagsList[0].optionId,
@@ -191,4 +191,4 @@ class Home extends Component {
   }
 }
 
-export default Home
+export default Home1

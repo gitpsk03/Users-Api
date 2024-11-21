@@ -28,38 +28,10 @@ const statusList = [
 
 class Home extends Component {
   state = {
-    activeStatus: statusList[1],
     inputText: '',
     taskList: [],
-    isEdit: false,
-    item: '',
-    editNow: false,
-    activeText: '',
-  }
-
-  onBlurEdit = () => {
-    const {activeText} = this.state
-    if (activeText === '') {
-      this.setState(prevState => ({
-        taskList: prevState.taskList.map(each => {
-          if (each.id === id) {
-            return {...each, task: activeText}
-          }
-          return each
-        }),
-      }))
-    }
-    this.setState(prevState => ({
-      editNow: !prevState.editNow,
-    }))
-  }
-
-  onChangeEdit = event => {
-    this.setState({inputText: event.target.value})
-  }
-
-  onConvertEditOption = () => {
-    this.setState(prevState => ({editNow: !prevState.editNow}))
+    editActive: false,
+    activeId: '',
   }
 
   changeInput = event => {
@@ -82,24 +54,57 @@ class Home extends Component {
     }
   }
 
+  editedSubmitForm = event => {
+    event.preventDefault()
+    const {inputText, activeId} = this.state
+    this.setState(prevState => ({
+      taskList: prevState.taskList.map(each => {
+        if (each.id === activeId) {
+          return {...each, task: inputText}
+        }
+        return each
+      }),
+      inputText: '',
+      editActive: false,
+      activeId: '',
+    }))
+  }
+
   renderCreateTaskView = () => {
-    const {inputText} = this.state
+    const {inputText, editActive} = this.state
     return (
       <CreateTaskDiv>
-        <CreateForm onSubmit={this.submitForm}>
-          <FormHeading>TODO</FormHeading>
-          <LabelInputDiv>
-            <Label htmlFor='inputText'>Task</Label>
-            <Input
-              type='text'
-              placeholder='Enter the task here'
-              onChange={this.changeInput}
-              value={inputText}
-              id='inputText'
-            />
-          </LabelInputDiv>
-          <FormBtn type='submit'>Add Task</FormBtn>
-        </CreateForm>
+        {editActive ? (
+          <CreateForm onSubmit={this.editedSubmitForm}>
+            <FormHeading>TODO</FormHeading>
+            <LabelInputDiv>
+              <Label htmlFor="inputText">Task</Label>
+              <Input
+                type="text"
+                placeholder="Enter the task here"
+                onChange={this.changeInput}
+                value={inputText}
+                id="inputText"
+              />
+            </LabelInputDiv>
+            <FormBtn type="submit">Ok</FormBtn>
+          </CreateForm>
+        ) : (
+          <CreateForm onSubmit={this.submitForm}>
+            <FormHeading>TODO</FormHeading>
+            <LabelInputDiv>
+              <Label htmlFor="inputText">Task</Label>
+              <Input
+                type="text"
+                placeholder="Enter the task here"
+                onChange={this.changeInput}
+                value={inputText}
+                id="inputText"
+              />
+            </LabelInputDiv>
+            <FormBtn type="submit">Add Task</FormBtn>
+          </CreateForm>
+        )}
       </CreateTaskDiv>
     )
   }
@@ -108,7 +113,19 @@ class Home extends Component {
     const {taskList} = this.state
     const onDeleteTodo = each => {
       const filteredTaskList = taskList.filter(item => item !== each)
-      this.setState({taskList: filteredTaskList})
+      this.setState({
+        taskList: filteredTaskList,
+        inputText: '',
+        editActive: false,
+        activeId: '',
+      })
+    }
+    const onClickEdit = each => {
+      this.setState({
+        editActive: true,
+        activeId: each.id,
+        inputText: each.task,
+      })
     }
 
     return (
@@ -116,10 +133,10 @@ class Home extends Component {
         {taskList.map(each => (
           <TaskListLi key={each.id}>
             <TaskText>{each.task}</TaskText>
-            <button type='button' onClick={() => onDeleteTodo(each)}>
+            <button type="button" onClick={() => onDeleteTodo(each)}>
               <RiDeleteBin6Line />
             </button>
-            <button type='button' onClick={this.onConvertEditOption}>
+            <button type="button" onClick={() => onClickEdit(each)}>
               <MdEdit />
             </button>
             <select>
