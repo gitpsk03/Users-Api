@@ -12,10 +12,10 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Configure CORS
+// Temporary CORS configuration to allow all origins for testing
 app.use(
   cors({
-    origin: 'https://shivakalyankkpa9rjsceuu4m8.drops.nxtwave.tech',
+    origin: '*', // Allow all origins temporarily to test
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
