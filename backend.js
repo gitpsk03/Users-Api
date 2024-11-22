@@ -34,8 +34,10 @@ const initializeDBAndServer = async () => {
     // Initialize the database schema
     await initializeSchema();
 
-    app.listen(3000, () => {
-      console.log('Server Running at http://localhost:3000/');
+    // Use dynamic port for deployment
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Server Running at http://localhost:${port}/`);
     });
   } catch (e) {
     console.log(`DB Error: ${e.message}`);
