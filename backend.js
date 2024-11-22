@@ -62,29 +62,30 @@ initializeDBAndServer();
 
 // Register API
 app.post('/user/', async (request, response) => {
-  const { username, name, password, email } = request.body;
+  try {
+    const { username, name, password, email } = request.body;
+    if (!password || password.length < 6) {
+      return response.status(400).send('Password must be at least 6 characters long');
+    }
 
-  if (!password || password.length < 6) {
-    response.status(400);
-    response.send('Password must be at least 6 characters long');
-    return;
-  }
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+    const selectUserQuery = `SELECT * FROM user WHERE username = ?;`;
+    const dbUser = await db.get(selectUserQuery, [username]);
 
-  const selectUserQuery = `SELECT * FROM user WHERE username = ?;`;
-  const dbUser = await db.get(selectUserQuery, [username]);
-
-  if (dbUser === undefined) {
-    const createUserQuery = `
-      INSERT INTO user (username, name, password, email)
-      VALUES (?, ?, ?, ?);
-    `;
-    await db.run(createUserQuery, [username, name, hashedPassword, email]);
-    response.send('User Created Successfully');
-  } else {
-    response.status(400);
-    response.send('User Already Exists');
+    if (dbUser === undefined) {
+      const createUserQuery = `
+        INSERT INTO user (username, name, password, email)
+        VALUES (?, ?, ?, ?);
+      `;
+      await db.run(createUserQuery, [username, name, hashedPassword, email]);
+      response.send('User Created Successfully');
+    } else {
+      response.status(400).send('User Already Exists');
+    }
+  } catch (error) {
+    console.error('Error in user creation:', error);
+    response.status(500).send('Internal Server Error');
   }
 });
 
