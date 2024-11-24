@@ -11,8 +11,6 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-
-// CORS configuration
 app.use(
   cors({
     origin: '*',
@@ -27,179 +25,134 @@ let db = null;
 // Initialize the database and server
 const initializeDBAndServer = async () => {
   try {
-    db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database,
-    });
-
-    await initializeSchema();
+    db = await open({ filename: dbPath, driver: sqlite3.Database });
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS user (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        name TEXT,
+        password TEXT,
+        email TEXT
+      )
+    `);
 
     const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      console.log(`Server Running at http://localhost:${port}/`);
-    });
+    app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
   } catch (error) {
-    console.error(`DB Error: ${error.message}`);
+    console.error('DB Error:', error.message);
     process.exit(1);
   }
-};
-
-// Create the database schema
-const initializeSchema = async () => {
-  const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS user (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE,
-      name TEXT,
-      password TEXT,
-      email TEXT
-    );
-  `;
-  await db.run(createTableQuery);
 };
 
 // Middleware to authenticate JWT
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).send('Unauthorized');
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
-    req.user = decoded; // Attach user info to the request
+    req.user = decoded; // Attach user info
     next();
   } catch (error) {
     console.error('JWT verification failed:', error.message);
-    res.status(401).send('Invalid token');
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
-// CRUD Profile API
-app.route('/profile/')
-  // Create (handled by /user/ route)
-  .get(authenticateJWT, async (req, res) => {
-    try {
-      // Read
-      const { username } = req.user;
-      const user = await db.get(
-        'SELECT id, username, name, email FROM user WHERE username = ?',
-        [username]
-      );
-      if (!user) {
-        return res.status(404).send('User not found');
-      }
-      res.json(user);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  })
-  .put(authenticateJWT, async (req, res) => {
-    try {
-      // Update
-      const { username } = req.user;
-      const { name, email, password } = req.body;
-
-      if (!name && !email && !password) {
-        return res.status(400).send('At least one field (name, email, password) is required');
-      }
-
-      const updateFields = [];
-      const values = [];
-
-      if (name) {
-        updateFields.push('name = ?');
-        values.push(name);
-      }
-      if (email) {
-        updateFields.push('email = ?');
-        values.push(email);
-      }
-      if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        updateFields.push('password = ?');
-        values.push(hashedPassword);
-      }
-
-      values.push(username);
-
-      const query = `UPDATE user SET ${updateFields.join(', ')} WHERE username = ?`;
-      await db.run(query, values);
-
-      res.send('Profile updated successfully');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  })
-  .delete(authenticateJWT, async (req, res) => {
-    try {
-      // Delete
-      const { username } = req.user;
-      await db.run('DELETE FROM user WHERE username = ?', [username]);
-      res.send('Profile deleted successfully');
-    } catch (error) {
-      console.error('Error deleting profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  });
-
 // User Registration API
 app.post('/user/', async (req, res) => {
-  try {
-    const { username, name, password, email } = req.body;
-    if (!username || !name || !password || !email) {
-      return res.status(400).send('All fields are required');
-    }
-    if (password.length < 6) {
-      return res.status(400).send('Password must be at least 6 characters long');
-    }
+  const { username, name, password, email } = req.body;
+  if (!username || !name || !password || !email) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
 
+  try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const dbUser = await db.get('SELECT * FROM user WHERE username = ?', [username]);
-    if (dbUser) {
-      return res.status(400).send('User Already Exists');
+    const existingUser = await db.get('SELECT * FROM user WHERE username = ?', [username]);
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
     }
 
     await db.run(
       'INSERT INTO user (username, name, password, email) VALUES (?, ?, ?, ?)',
       [username, name, hashedPassword, email]
     );
-    res.send('User Created Successfully');
+    res.json({ message: 'User created successfully' });
   } catch (error) {
-    console.error('Error in user creation:', error);
-    res.status(500).send('Internal Server Error');
+    console.error('Error during user registration:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Login API
 app.post('/login/', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
   try {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).send('Username and password are required');
+    const user = await db.get('SELECT * FROM user WHERE username = ?', [username]);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid username or password' });
     }
 
-    const dbUser = await db.get('SELECT * FROM user WHERE username = ?', [username]);
-    if (!dbUser) {
-      return res.status(400).send('Invalid User');
-    }
-
-    const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
     if (isPasswordMatched) {
-      const payload = { username };
-      const jwtToken = jwt.sign(payload, process.env.JWT_SECRET || 'default_secret');
-      res.send({ jwtToken });
+      const token = jwt.sign({ username }, process.env.JWT_SECRET || 'default_secret', {
+        expiresIn: '1h',
+      });
+      res.json({ jwtToken: token });
     } else {
-      res.status(400).send('Invalid Password');
+      res.status(400).json({ error: 'Invalid username or password' });
     }
   } catch (error) {
-    console.error('Error in login:', error);
-    res.status(500).send('Internal Server Error');
+    console.error('Error during login:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Start server
+// CRUD Profile API
+app.route('/profile/')
+  .get(authenticateJWT, async (req, res) => {
+    try {
+      const { username } = req.user;
+      const user = await db.get('SELECT id, username, name, email FROM user WHERE username = ?', [
+        username,
+      ]);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error('Error fetching profile:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+  .put(authenticateJWT, async (req, res) => {
+    try {
+      const { username } = req.user;
+      const { name, email, password } = req.body;
+
+      const fields = [];
+      const values = [];
+      if (name) fields.push('name = ?'), values.push(name);
+      if (email) fields.push('email = ?'), values.push(email);
+      if (password) fields.push('password = ?'), values.push(await bcrypt.hash(password, 10));
+      values.push(username);
+
+      await db.run(`UPDATE user SET ${fields.join(', ')} WHERE username = ?`, values);
+      res.json({ message: 'Profile updated successfully' });
+    } catch (error) {
+      console.error('Error updating profile:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
 initializeDBAndServer();
