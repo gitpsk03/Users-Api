@@ -136,7 +136,10 @@ app.route('/profile/')
   .get(authenticateJWT, async (req, res) => {
     try {
       const { username } = req.user;
-      const user = await db.get('SELECT id, username, name, email FROM user WHERE username = ?', [username]);
+      const user = await db.get(
+        'SELECT id, username, name, email FROM user WHERE username = ?',
+        [username]
+      );
       if (!user) {
         return res.status(404).send('User not found');
       }
@@ -182,17 +185,8 @@ app.route('/profile/')
       console.error('Error updating profile:', error);
       res.status(500).send('Internal Server Error');
     }
-  })
-  .delete(authenticateJWT, async (req, res) => {
-    try {
-      const { username } = req.user;
-      await db.run('DELETE FROM user WHERE username = ?', [username]);
-      res.send('Profile deleted successfully');
-    } catch (error) {
-      console.error('Error deleting profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
   });
+
 
 // Start server
 initializeDBAndServer();
