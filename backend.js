@@ -76,7 +76,77 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
-// Register API
+// CRUD Profile API
+app.route('/profile/')
+  // Create (handled by /user/ route)
+  .get(authenticateJWT, async (req, res) => {
+    try {
+      // Read
+      const { username } = req.user;
+      const user = await db.get(
+        'SELECT id, username, name, email FROM user WHERE username = ?',
+        [username]
+      );
+      if (!user) {
+        return res.status(404).send('User not found');
+      }
+      res.json(user);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  })
+  .put(authenticateJWT, async (req, res) => {
+    try {
+      // Update
+      const { username } = req.user;
+      const { name, email, password } = req.body;
+
+      if (!name && !email && !password) {
+        return res.status(400).send('At least one field (name, email, password) is required');
+      }
+
+      const updateFields = [];
+      const values = [];
+
+      if (name) {
+        updateFields.push('name = ?');
+        values.push(name);
+      }
+      if (email) {
+        updateFields.push('email = ?');
+        values.push(email);
+      }
+      if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        updateFields.push('password = ?');
+        values.push(hashedPassword);
+      }
+
+      values.push(username);
+
+      const query = `UPDATE user SET ${updateFields.join(', ')} WHERE username = ?`;
+      await db.run(query, values);
+
+      res.send('Profile updated successfully');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  })
+  .delete(authenticateJWT, async (req, res) => {
+    try {
+      // Delete
+      const { username } = req.user;
+      await db.run('DELETE FROM user WHERE username = ?', [username]);
+      res.send('Profile deleted successfully');
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
+// User Registration API
 app.post('/user/', async (req, res) => {
   try {
     const { username, name, password, email } = req.body;
@@ -130,63 +200,6 @@ app.post('/login/', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
-
-// Profile API
-app.route('/profile/')
-  .get(authenticateJWT, async (req, res) => {
-    try {
-      const { username } = req.user;
-      const user = await db.get(
-        'SELECT id, username, name, email FROM user WHERE username = ?',
-        [username]
-      );
-      if (!user) {
-        return res.status(404).send('User not found');
-      }
-      res.json(user);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  })
-  .put(authenticateJWT, async (req, res) => {
-    try {
-      const { username } = req.user;
-      const { name, email, password } = req.body;
-
-      if (!name && !email && !password) {
-        return res.status(400).send('At least one field (name, email, password) is required');
-      }
-
-      const updateFields = [];
-      const values = [];
-
-      if (name) {
-        updateFields.push('name = ?');
-        values.push(name);
-      }
-      if (email) {
-        updateFields.push('email = ?');
-        values.push(email);
-      }
-      if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        updateFields.push('password = ?');
-        values.push(hashedPassword);
-      }
-
-      values.push(username);
-
-      const query = `UPDATE user SET ${updateFields.join(', ')} WHERE username = ?`;
-      await db.run(query, values);
-
-      res.send('Profile updated successfully');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  });
-
 
 // Start server
 initializeDBAndServer();
