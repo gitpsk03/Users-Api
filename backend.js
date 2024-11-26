@@ -75,24 +75,24 @@ app.post('/user/', async (request, response) => {
 })
 
 app.post('/login', async (request, response) => {
-  const {username, password} = request.body
-  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`
-  const dbUser = await db.get(selectUserQuery)
+  const { username, password } = request.body;
+  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
+  const dbUser = await db.get(selectUserQuery);
   if (dbUser === undefined) {
-    response.status(400)
-    response.send('Invalid User')
+    response.status(400);
+    response.send({ error: 'Invalid User' });
   } else {
-    const isPasswordMatched = await bcrypt.compare(password, dbUser.password)
+    const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
     if (isPasswordMatched === true) {
-      const payload = {username: username}
-      const jwtToken = jwt.sign(payload, 'aafSSCsz')
-      response.send({jwtToken})
+      const payload = { username: username };
+      const jwtToken = jwt.sign(payload, 'aafSSCsz');
+      response.send({ jwtToken });
     } else {
-      response.status(400)
-      response.send('Invalid Password')
+      response.status(400);
+      response.send({ error: 'Invalid Password' });
     }
   }
-})
+});
 
 // GET Profile API
 app.get('/profile/', authenticateToken, async (request, response) => {
