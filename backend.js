@@ -48,7 +48,7 @@ const initializeDBAndServer = async () => {
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized, No token provided' });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -62,15 +62,71 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
+// User Registration API
+app.post('/user/', async (req, res) => {
+  const { username, name, password, email } = req.body;
+  if (!username || !name || !password || !email) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const existingUser = await db.get('SELECT * FROM user WHERE username = ?', [username]);
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    await db.run(
+      'INSERT INTO user (username, name, password, email) VALUES (?, ?, ?, ?)',
+      [username, name, hashedPassword, email]
+    );
+    res.json({ message: 'User created successfully' });
+  } catch (error) {
+    console.error('Error during user registration:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login API
+app.post('/login/', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  try {
+    const user = await db.get('SELECT * FROM user WHERE username = ?', [username]);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid username or password' });
+    }
+
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
+    if (isPasswordMatched) {
+      const token = jwt.sign({ username }, process.env.JWT_SECRET || 'default_secret', {
+        expiresIn: '1h',
+      });
+      res.json({ jwtToken: token });
+    } else {
+      res.status(400).json({ error: 'Invalid username or password' });
+    }
+  } catch (error) {
+    console.error('Error during login:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // CRUD Profile API
 app.route('/profile/')
   .get(authenticateJWT, async (req, res) => {
     try {
       const { username } = req.user;
-      console.log(`Fetching profile for username: ${username}`); // Debugging log
-      const user = await db.get('SELECT id, username, name, email FROM user WHERE username = ?', [username]);
+      const user = await db.get('SELECT id, username, name, email FROM user WHERE username = ?', [
+        username,
+      ]);
       if (!user) {
-        console.log('User not found in the database.'); // Debugging log
         return res.status(404).json({ error: 'User not found' });
       }
       res.json(user);
