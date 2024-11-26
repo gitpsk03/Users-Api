@@ -33,28 +33,23 @@ const initializeDBAndServer = async () => {
       filename: dbPath,
       driver: sqlite3.Database,
     });
-    app.listen(3000, () => {
-      console.log('Server Running at http://localhost:3000/');
+    const port = process.env.PORT || 3000; // Dynamic port assignment
+    app.listen(port, () => {
+      console.log(`Server Running at http://localhost:${port}/`);
     });
   } catch (e) {
-    console.log(`DB Error: ${e.message}`);
-    process.exit(1);
+    console.error(`DB Error: ${e.message}`);
+    process.exit(1); // Exit if the database connection fails
   }
 };
 initializeDBAndServer();
 
 // Middleware to authenticate JWT token
 const authenticateToken = (request, response, next) => {
-  let jwtToken;
   const authHeader = request.headers['authorization'];
-  if (authHeader !== undefined) {
-    jwtToken = authHeader.split(' ')[1];
-  }
-  if (jwtToken === undefined) {
-    response.status(401);
-    response.send('Invalid Access Token');
-  } else {
-    jwt.verify(jwtToken, process.env.JWT_SECRET || 'aafSSCsz', async (error, payload) => {
+  if (authHeader) {
+    const jwtToken = authHeader.split(' ')[1];
+    jwt.verify(jwtToken, process.env.JWT_SECRET || 'aafSSCsz', (error, payload) => {
       if (error) {
         response.status(401).send('Invalid Access Token');
       } else {
@@ -62,57 +57,68 @@ const authenticateToken = (request, response, next) => {
         next();
       }
     });
+  } else {
+    response.status(401).send('Authorization header is missing');
   }
 };
 
 // API to register a new user
 app.post('/user/', async (request, response) => {
-  const { username, name, password, email } = request.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
-  const dbUser = await db.get(selectUserQuery);
-  if (dbUser === undefined) {
-    const createUserQuery = `
-      INSERT INTO 
-        user (username, name, password, email) 
-      VALUES 
-        (
-          '${username}', 
-          '${name}',
-          '${hashedPassword}', 
-          '${email}'
-        )`;
-    const dbResponse = await db.run(createUserQuery);
-    const newUserId = dbResponse.lastID;
-    response.send(`Created new user with ID: ${newUserId}`);
-  } else {
-    response.status(400).send('User already exists');
+  try {
+    const { username, name, password, email } = request.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const selectUserQuery = `SELECT * FROM user WHERE username = ?`;
+    const dbUser = await db.get(selectUserQuery, [username]);
+    if (dbUser === undefined) {
+      const createUserQuery = `
+        INSERT INTO 
+          user (username, name, password, email) 
+        VALUES 
+          (?, ?, ?, ?)`;
+      const dbResponse = await db.run(createUserQuery, [username, name, hashedPassword, email]);
+      response.send(`Created new user with ID: ${dbResponse.lastID}`);
+    } else {
+      response.status(400).send('User already exists');
+    }
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    response.status(500).send('Internal Server Error');
   }
 });
 
 // API to log in a user and generate a JWT token
 app.post('/login/', async (request, response) => {
-  const { username, password } = request.body;
-  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
-  const dbUser = await db.get(selectUserQuery);
-  if (dbUser === undefined) {
-    response.status(400).send('Invalid User');
-  } else {
-    const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
-    if (isPasswordMatched === true) {
-      const payload = { username: username };
-      const jwtToken = jwt.sign(payload, process.env.JWT_SECRET || 'aafSSCsz');
-      response.send({ jwtToken });
+  try {
+    const { username, password } = request.body;
+    const selectUserQuery = `SELECT * FROM user WHERE username = ?`;
+    const dbUser = await db.get(selectUserQuery, [username]);
+    if (dbUser === undefined) {
+      response.status(400).send('Invalid User');
     } else {
-      response.status(400).send('Invalid Password');
+      const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
+      if (isPasswordMatched) {
+        const payload = { username: username };
+        const jwtToken = jwt.sign(payload, process.env.JWT_SECRET || 'aafSSCsz');
+        response.send({ jwtToken });
+      } else {
+        response.status(400).send('Invalid Password');
+      }
     }
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    response.status(500).send('Internal Server Error');
   }
 });
 
 // API to get user profile
 app.get('/profile/', authenticateToken, async (request, response) => {
-  const { username } = request;
-  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
-  const userDetails = await db.get(selectUserQuery);
-  response.send(userDetails);
+  try {
+    const { username } = request;
+    const selectUserQuery = `SELECT * FROM user WHERE username = ?`;
+    const userDetails = await db.get(selectUserQuery, [username]);
+    response.send(userDetails);
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    response.status(500).send('Internal Server Error');
+  }
 });
