@@ -123,10 +123,12 @@ app.route('/profile/')
   .get(authenticateJWT, async (req, res) => {
     try {
       const { username } = req.user;
+      console.log(`Fetching profile for username: ${username}`); // Debugging log
       const user = await db.get('SELECT id, username, name, email FROM user WHERE username = ?', [
         username,
       ]);
       if (!user) {
+        console.log('User not found.'); // Debugging log
         return res.status(404).json({ error: 'User not found' });
       }
       res.json(user);
