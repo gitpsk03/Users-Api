@@ -49,21 +49,20 @@ const authenticateToken = (request, response, next) => {
 }
 
 app.post('/user/', async (request, response) => {
-  const {username, name, password, gender, location} = request.body
+  const {username, name, password, email} = request.body
   const hashedPassword = await bcrypt.hash(request.body.password, 10)
   const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`
   const dbUser = await db.get(selectUserQuery)
   if (dbUser === undefined) {
     const createUserQuery = `
       INSERT INTO 
-        user (username, name, password, gender, location) 
+        user (username, name, password, email) 
       VALUES 
         (
           '${username}', 
           '${name}',
           '${hashedPassword}', 
-          '${gender}',
-          '${location}'
+          '${email}'
         )`
     const dbResponse = await db.run(createUserQuery)
     const newUserId = dbResponse.lastID
@@ -74,7 +73,7 @@ app.post('/user/', async (request, response) => {
   }
 })
 
-app.post('/login', async (request, response) => {
+app.post('/login/', async (request, response) => {
   const {username, password} = request.body
   const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`
   const dbUser = await db.get(selectUserQuery)
