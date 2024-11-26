@@ -4,9 +4,23 @@ const {open} = require('sqlite')
 const bcrypt = require('bcrypt')
 const sqlite3 = require('sqlite3')
 const jwt = require('jsonwebtoken')
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express()
 app.use(express.json())
+
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+
 const dbPath = path.join(__dirname, 'users.db')
 
 let db = null
