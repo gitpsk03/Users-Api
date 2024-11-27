@@ -116,9 +116,14 @@ app.get('/profile/', authenticateToken, async (request, response) => {
     const { username } = request;
     const selectUserQuery = `SELECT * FROM user WHERE username = ?`;
     const userDetails = await db.get(selectUserQuery, [username]);
-    response.send(userDetails);
+    if (userDetails) {
+      response.send(userDetails);
+    } else {
+      response.status(404).send('User not found');
+    }
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error('Error fetching profile:', error.message);
     response.status(500).send('Internal Server Error');
   }
 });
+
