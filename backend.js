@@ -62,7 +62,7 @@ const authenticateToken = (request, response, next) => {
   }
 };
 
-// API to register a new user
+// API to register a new user (Create)
 app.post('/user/', async (request, response) => {
   try {
     const { username, name, password, email } = request.body;
@@ -110,7 +110,7 @@ app.post('/login/', async (request, response) => {
   }
 });
 
-// API to get user profile
+// API to get user profile (Read)
 app.get('/profile/', authenticateToken, async (request, response) => {
   try {
     const { username } = request;
@@ -123,6 +123,49 @@ app.get('/profile/', authenticateToken, async (request, response) => {
     }
   } catch (error) {
     console.error('Error fetching profile:', error.message);
+    response.status(500).send('Internal Server Error');
+  }
+});
+
+// API to update user profile (Update)
+app.put('/profile/', authenticateToken, async (request, response) => {
+  try {
+    const { username } = request;
+    const { name, email, password } = request.body;
+
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+    const updateQuery = hashedPassword
+      ? `UPDATE user SET name = ?, email = ?, password = ? WHERE username = ?`
+      : `UPDATE user SET name = ?, email = ? WHERE username = ?`;
+
+    const updateParams = hashedPassword ? [name, email, hashedPassword, username] : [name, email, username];
+
+    const dbResponse = await db.run(updateQuery, updateParams);
+    if (dbResponse.changes > 0) {
+      response.send('Profile updated successfully!');
+    } else {
+      response.status(400).send('Profile update failed.');
+    }
+  } catch (error) {
+    console.error('Error updating profile:', error.message);
+    response.status(500).send('Internal Server Error');
+  }
+});
+
+// API to delete user profile (Delete)
+app.delete('/profile/', authenticateToken, async (request, response) => {
+  try {
+    const { username } = request;
+    const deleteQuery = `DELETE FROM user WHERE username = ?`;
+    const dbResponse = await db.run(deleteQuery, [username]);
+
+    if (dbResponse.changes > 0) {
+      response.send('Profile deleted successfully!');
+    } else {
+      response.status(404).send('User not found');
+    }
+  } catch (error) {
+    console.error('Error deleting profile:', error.message);
     response.status(500).send('Internal Server Error');
   }
 });
